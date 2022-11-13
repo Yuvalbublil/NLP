@@ -1,5 +1,5 @@
 import abc
-
+import pickle as pkl
 import spacy
 from datasets import load_dataset
 from spacy.attrs import LEMMA, IS_ALPHA
@@ -17,7 +17,7 @@ class NGram:
         self.dictionary = {COUNTER_KEY: 0}
 
     def train(self, dataset):
-        for text in dataset['text'][:200]:
+        for text in dataset['text']:
             doc = nlp(f"{START} {text}")
             filtered_doc = Doc(doc.vocab, words=[t.text for t in doc if t.is_alpha])
             for i, token in enumerate(filtered_doc):
@@ -70,8 +70,7 @@ class BiGram(NGram):
         last_token = sentence[len(sentence)-1]
         return NGram._max_value_from_dictionary(self.dictionary[NGram._get_lemma(last_token)])
 
-
-def main():
+def train_all():
     dataset = load_dataset('wikitext', 'wikitext-2-raw-v1', split="train")
 
     unigram = UniGram()
@@ -79,10 +78,27 @@ def main():
 
     unigram.train(dataset)
     bigram.train(dataset)
+    with open("unigram.pkl", "wb") as f:
+        pkl.dump(unigram, f)
+    with open("bigram.pkl", "wb") as f:
+        pkl.dump(bigram, f)
+    return unigram, bigram
 
+def load_all():
+    unigram = UniGram()
+    bigram = BiGram()
+
+    with open("unigram.pkl", "rb") as f:
+        unigram = pkl.load(f)
+    with open("bigram.pkl", "rb") as f:
+        bigram = pkl.load(f)
+    return unigram, bigram
+def main():
+    unigram, bigram = load_all()
     print(f'unigram_{unigram.continue_sentence("I have a house in")}_')
     print(f'bigram_{bigram.continue_sentence("I have a house in")}_')
 
 
 if __name__ == "__main__":
+    # train_all()
     main()
