@@ -12,6 +12,7 @@ import data_loader
 import pickle
 import tqdm
 import gensim
+from memory_profiler import profile
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -346,7 +347,7 @@ def train_epoch(model, data_iterator, optimizer, criterion: nn.BCEWithLogitsLoss
         loss.backward()
         optimizer.step()
 
-
+@profile
 def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
     """
     evaluate the model performance on the given data
@@ -357,14 +358,19 @@ def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
     """
     loss = 0
     accuracy = 0
-    counter = 0
+    counter = 0  # TODO this function is taking too much memory, try to reduce it
     for batch in data_iterator:
-        counter += 1
-        x, y = batch
-        y_pred = model(x).squeeze()
-        loss += criterion(y_pred, y)
-        accuracy += binary_accuracy(y_pred, y)
-    return loss.item() / counter, accuracy / counter
+        accuracy, counter, loss = evaluate_helper(accuracy, batch, counter, criterion, loss, model)
+    return loss / counter, accuracy / counter
+
+
+def evaluate_helper(accuracy, batch, counter, criterion, loss, model):
+    counter += 1
+    x, y = batch
+    y_pred = model(x).squeeze()
+    loss += criterion(y_pred, y).item()
+    accuracy += binary_accuracy(y_pred, y)
+    return accuracy, counter, loss
 
 
 def get_predictions_for_data(model, data_iter: DataLoader):
@@ -399,7 +405,7 @@ def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.)
     for epoch in range(n_epochs):
         train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
 
-
+@profile
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
@@ -409,7 +415,7 @@ def train_log_linear_with_one_hot():
     model = LogLinear(embedding_dim=embedding_dim)
     val_loss_arr = []
     train_loss_arr = []
-    for epoch in range(3):
+    for epoch in range(1):
         train_model(model, data_manager, n_epochs=1, lr=0.01, weight_decay=0.001)
         val_loss, _ = evaluate(model, data_manager.get_torch_iterator(VAL), nn.BCEWithLogitsLoss())
         train_loss, _ = evaluate(model, data_manager.get_torch_iterator(TRAIN), nn.BCEWithLogitsLoss())
