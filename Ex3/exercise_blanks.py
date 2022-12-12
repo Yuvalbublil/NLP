@@ -326,7 +326,7 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    return np.sum(preds == y) / len(y)
+    return torch.sum(preds == y).item() / y.size(0)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion: nn.BCEWithLogitsLoss):
@@ -341,13 +341,13 @@ def train_epoch(model, data_iterator, optimizer, criterion: nn.BCEWithLogitsLoss
     for batch in tqdm.tqdm(data_iterator):
         x, y = batch
         optimizer.zero_grad()
-        y_pred = model(x)
-        loss = criterion(y_pred.reshape((y_pred.shape[0],)), y)
+        y_pred = model(x).squeeze()
+        loss = criterion(y_pred, y)
         loss.backward()
         optimizer.step()
 
 
-def evaluate(model : nn.Module, data_iterator: DataLoader, criterion):
+def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
     """
     evaluate the model performance on the given data
     :param model: one of our models..
@@ -361,8 +361,8 @@ def evaluate(model : nn.Module, data_iterator: DataLoader, criterion):
     for batch in data_iterator:
         counter += 1
         x, y = batch
-        y_pred = model(x)
-        loss += criterion(y_pred.reshape((y_pred.shape[0],)), y)
+        y_pred = model(x).squeeze()
+        loss += criterion(y_pred, y)
         accuracy += binary_accuracy(y_pred, y)
     return loss / counter, accuracy / counter
 
