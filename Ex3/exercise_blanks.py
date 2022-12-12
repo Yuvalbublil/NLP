@@ -364,7 +364,7 @@ def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
         y_pred = model(x).squeeze()
         loss += criterion(y_pred, y)
         accuracy += binary_accuracy(y_pred, y)
-    return loss / counter, accuracy / counter
+    return loss.item() / counter, accuracy / counter
 
 
 def get_predictions_for_data(model, data_iter: DataLoader):
@@ -409,7 +409,7 @@ def train_log_linear_with_one_hot():
     model = LogLinear(embedding_dim=embedding_dim)
     val_loss_arr = []
     train_loss_arr = []
-    for epoch in range(20):
+    for epoch in range(3):
         train_model(model, data_manager, n_epochs=1, lr=0.01, weight_decay=0.001)
         val_loss, _ = evaluate(model, data_manager.get_torch_iterator(VAL), nn.BCEWithLogitsLoss())
         train_loss, _ = evaluate(model, data_manager.get_torch_iterator(TRAIN), nn.BCEWithLogitsLoss())
