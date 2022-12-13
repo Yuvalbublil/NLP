@@ -12,7 +12,6 @@ import data_loader
 import pickle
 import tqdm
 import gensim
-from memory_profiler import profile
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -355,7 +354,7 @@ def train_epoch(model, data_iterator, optimizer, criterion: nn.BCEWithLogitsLoss
         optimizer.step()
 
 
-@profile
+
 def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
     """
     evaluate the model performance on the given data
@@ -416,7 +415,7 @@ def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.)
         train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
 
 
-@profile
+
 def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
@@ -435,32 +434,36 @@ def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     model = LogLinear(embedding_dim=embedding_dim)
     val_loss_arr = []
     train_loss_arr = []
-    for epoch in range(1):
+    for epoch in range(20):
         train_model(model, data_manager, n_epochs=1, lr=0.01, weight_decay=0.001)
         if evaluate_on_test:
             val_loss, _ = evaluate(model, data_manager.get_torch_iterator(VAL), nn.BCEWithLogitsLoss())
             train_loss, _ = evaluate(model, data_manager.get_torch_iterator(TRAIN), nn.BCEWithLogitsLoss())
         train_loss_arr.append(train_loss)
         val_loss_arr.append(val_loss)
+    pickle_handler_save(model, train_loss_arr, val_loss_arr, PATHS[data_type])
     if evaluate_on_test:
         plot_evaluation(train_loss_arr, val_loss_arr,plot_name, PATHS[data_type])
-    pickle_handler_save(model, train_loss_arr, val_loss_arr, PATHS[data_type])
     return model
 
 def pickle_handler_load(results_dir):
-    if not os.path.exists(results_dir):
+    dirname = os.path.dirname(__file__)
+    abs_results_dir = os.path.join(dirname, results_dir)
+    if not os.path.exists(abs_results_dir):
         return None, None, None
-    trained_model = load_pickle(f"{results_dir}/model.pkl")
-    train_loss, val_loss = load_pickle(f"{results_dir}/loss.pkl")
-    return trained_model,train_loss, val_loss
+    try:
+        trained_model = load_pickle(os.path.join(abs_results_dir,'model.pkl'))
+        train_loss, val_loss = load_pickle(os.path.join(abs_results_dir,"loss.pkl"))
+        return trained_model, train_loss, val_loss
+    except FileNotFoundError:
+        return None, None, None
 
-def pickle_handler_save(results_dir, model, train_loss, val_loss):
-    os.mkdir(results_dir)
-    if not os.path.exists(results_dir):
-        os.mkdir(results_dir)
-        return None, None, None
-    save_pickle(f"{results_dir}/model.pkl", model)
-    save_pickle(f"{results_dir}/loss.pkl", (train_loss, val_loss))
+def pickle_handler_save(model, train_loss, val_loss,results_dir: str):
+    dirname = os.path.dirname(__file__)
+    abs_results_dir = os.path.join(dirname, results_dir)
+    os.mkdir(abs_results_dir)
+    save_pickle(model, os.path.join(abs_results_dir,'model.pkl'))
+    save_pickle((train_loss, val_loss),os.path.join(abs_results_dir,"loss.pkl"))
 
 def plot_evaluation(train_loss_arr, val_loss_arr, model_name, results_dir):
     plt.plot(train_loss_arr, label='train loss')
