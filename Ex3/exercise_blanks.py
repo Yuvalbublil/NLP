@@ -416,6 +416,15 @@ def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.)
         train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
 
 
+def train_and_evaluate(model, data_manager: DataManager, n_epochs, lr, weight_decay, subsets_loss, subsets_acc):
+    train_model(model, data_manager, n_epochs, lr, weight_decay)
+
+    for subset in [TRAIN, VAL, TEST]:
+        loss, accuracy = evaluate(model, data_manager.get_torch_iterator(subset), nn.BCEWithLogitsLoss())
+        subsets_loss[subset].append(loss)
+        subsets_acc[subset].append(accuracy)
+
+
 @profile
 def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     """
@@ -423,7 +432,7 @@ def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     """
     results_dir = PATHS[data_type]
     plot_name = f"Log Linear {data_type} Model"
-    trained_model,train_loss,  val_loss = pickle_handler_load(results_dir)
+    trained_model, train_loss, val_loss = pickle_handler_load(results_dir)
 
     if trained_model:
         if evaluate_on_test:
@@ -433,34 +442,42 @@ def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     data_manager = DataManager(data_type=data_type, batch_size=64)
     embedding_dim = data_manager.get_input_shape()[0]
     model = LogLinear(embedding_dim=embedding_dim)
-    val_loss_arr = []
-    train_loss_arr = []
+
+    n_epochs, lr, weight_decay = 1, 0.01, 0.001
+    subsets_loss = {TRAIN: [], VAL: [], TEST: []}
+    subsets_acc = {TRAIN: [], VAL: [], TEST: []}
+
     for epoch in range(1):
-        train_model(model, data_manager, n_epochs=1, lr=0.01, weight_decay=0.001)
         if evaluate_on_test:
-            val_loss, _ = evaluate(model, data_manager.get_torch_iterator(VAL), nn.BCEWithLogitsLoss())
-            train_loss, _ = evaluate(model, data_manager.get_torch_iterator(TRAIN), nn.BCEWithLogitsLoss())
-        train_loss_arr.append(train_loss)
-        val_loss_arr.append(val_loss)
+            train_and_evaluate(model, data_manager, n_epochs, lr, weight_decay, subsets_loss, subsets_acc)
+        else:
+            train_model(model, data_manager, n_epochs, lr, weight_decay)
+
     if evaluate_on_test:
-        plot_evaluation(train_loss_arr, val_loss_arr,plot_name, PATHS[data_type])
-    pickle_handler_save(model, train_loss_arr, val_loss_arr, PATHS[data_type])
+        plot_evaluation(subsets_loss[TRAIN], subsets_loss[VAL], f"{plot_name} - Loss", PATHS[data_type])
+        plot_evaluation(subsets_acc[TRAIN], subsets_acc[VAL], f"{plot_name} - Accuracy", PATHS[data_type])
+    pickle_handler_save(model, subsets_loss[TRAIN], subsets_loss[VAL], PATHS[data_type])
     return model
+
 
 def pickle_handler_load(results_dir):
     if not os.path.exists(results_dir):
         return None, None, None
     trained_model = load_pickle(f"{results_dir}/model.pkl")
     train_loss, val_loss = load_pickle(f"{results_dir}/loss.pkl")
-    return trained_model,train_loss, val_loss
+    return trained_model, train_loss, val_loss
+
 
 def pickle_handler_save(results_dir, model, train_loss, val_loss):
     os.mkdir(results_dir)
     if not os.path.exists(results_dir):
-        os.mkdir(results_dir)
+        dirname = os.path.dirname(__file__)
+        abs_results_dir = os.path.join(dirname, results_dir)
+        os.mkdir(abs_results_dir)
         return None, None, None
     save_pickle(f"{results_dir}/model.pkl", model)
     save_pickle(f"{results_dir}/loss.pkl", (train_loss, val_loss))
+
 
 def plot_evaluation(train_loss_arr, val_loss_arr, model_name, results_dir):
     plt.plot(train_loss_arr, label='train loss')
