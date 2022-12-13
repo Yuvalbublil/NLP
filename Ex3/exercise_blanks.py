@@ -560,3 +560,5 @@ if __name__ == '__main__':
     # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
+    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64)
+    embedding_dim = data_manager.get_input_shape()[0]
