@@ -22,7 +22,9 @@ W2V_EMBEDDING_DIM = 300
 ONEHOT_AVERAGE = "onehot_average"
 W2V_AVERAGE = "w2v_average"
 W2V_SEQUENCE = "w2v_sequence"
-
+PATHS = {ONEHOT_AVERAGE: "results_log_linear_one_hot",
+         W2V_AVERAGE: "results_log_linear_w2v_average",
+         W2V_SEQUENCE: "results_LSTM_w2v_sequence"}
 TRAIN = "train"
 VAL = "val"
 TEST = "test"
@@ -291,13 +293,18 @@ class LSTM(nn.Module):
     """
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
-        return
+        super(LSTM, self).__init__()
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, n_layers, dropout=dropout, bidirectional=True)
 
     def forward(self, text):
-        return
+        """
+        :param text: a tensor batch of sentences. shape: (batch_size, seq_len, embedding_dim)
+        :return:
+        """
+        return self.lstm.forward(text)
 
     def predict(self, text):
-        return
+        return self.forward(text)[0]
 
 
 class LogLinear(nn.Module):
@@ -347,6 +354,7 @@ def train_epoch(model, data_iterator, optimizer, criterion: nn.BCEWithLogitsLoss
         loss.backward()
         optimizer.step()
 
+
 @profile
 def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
     """
@@ -359,18 +367,20 @@ def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
     loss = 0
     accuracy = 0
     counter = 0  # TODO this function is taking too much memory, try to reduce it
+    torch.no_grad()
     for batch in data_iterator:
-        accuracy, counter, loss = evaluate_helper(accuracy, batch, counter, criterion, loss, model)
+        counter += 1
+        accuracy, loss = evaluate_helper(accuracy, batch, criterion, loss, model)
+    torch.enable_grad()
     return loss / counter, accuracy / counter
 
 
-def evaluate_helper(accuracy, batch, counter, criterion, loss, model):
-    counter += 1
+def evaluate_helper(accuracy, batch, criterion, loss, model):
     x, y = batch
     y_pred = model(x).squeeze()
     loss += criterion(y_pred, y).item()
     accuracy += binary_accuracy(y_pred, y)
-    return accuracy, counter, loss
+    return accuracy, loss
 
 
 def get_predictions_for_data(model, data_iter: DataLoader):
@@ -385,8 +395,8 @@ def get_predictions_for_data(model, data_iter: DataLoader):
     """
     y_pred = []
     for batch in data_iter:
-        x, _ = batch  # TODO: check if this is correct
-        y_pred.extend(model(x))  # is it append or extend?
+        x, _ = batch
+        y_pred.extend(model(x))
     return y_pred
 
 
@@ -405,12 +415,21 @@ def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.)
     for epoch in range(n_epochs):
         train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
 
+
 @profile
-def train_log_linear_with_one_hot():
+def train_log_linear(data_type=ONEHOT_AVERAGE):
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    data_manager = DataManager(ONEHOT_AVERAGE, batch_size=64)
+    results_dir = PATHS[data_type]
+    plot_name = f"Log Linear {data_type} Model"
+    train_loss, trained_model, val_loss = pickle_handler(results_dir)
+
+    if trained_model is not None:
+        plot_evaluation(train_loss, val_loss, plot_name, results_dir)
+        return
+
+    data_manager = DataManager(data_type=data_type, batch_size=64)
     embedding_dim = data_manager.get_input_shape()[0]
     model = LogLinear(embedding_dim=embedding_dim)
     val_loss_arr = []
@@ -421,10 +440,37 @@ def train_log_linear_with_one_hot():
         train_loss, _ = evaluate(model, data_manager.get_torch_iterator(TRAIN), nn.BCEWithLogitsLoss())
         train_loss_arr.append(train_loss)
         val_loss_arr.append(val_loss)
+    plot_evaluation(train_loss_arr, val_loss_arr,plot_name, PATHS[data_type])
+
+
+def pickle_handler(results_dir):
+    if not os.path.exists(results_dir):
+        os.mkdir(results_dir)
+        return None, None, None
+    else:
+        trained_model = load_pickle(f"{results_dir}/model.pkl")
+        train_loss, val_loss = load_pickle(f"{results_dir}/loss.pkl")
+        return train_loss, trained_model, val_loss
+
+
+def plot_evaluation(train_loss_arr, val_loss_arr, model_name, results_dir):
     plt.plot(train_loss_arr, label='train loss')
     plt.plot(val_loss_arr, label='validation loss')
     plt.legend()
+    plt.title(f'{model_name} loss: train vs validation')
+    plt.xlabel('epoch number')
+    plt.ylabel('loss')
+    plt.xticks(range(len(train_loss_arr)))
+    plt.savefig(f'{results_dir}/{model_name}_loss.png')
     plt.show()
+
+
+@profile
+def train_log_linear_with_one_hot():
+    """
+    Here comes your code for training and evaluation of the log linear model with one hot representation.
+    """
+    return train_log_linear(data_type=ONEHOT_AVERAGE)
 
 
 def train_log_linear_with_w2v():
@@ -432,7 +478,7 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
-    return
+    return train_log_linear(data_type=W2V_AVERAGE)
 
 
 def train_lstm_with_w2v():
