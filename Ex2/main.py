@@ -5,7 +5,21 @@ from nltk.corpus import brown as br
 COUNTER_KEY = '#'  # key for the counter of the number of words in the dictionary
 MOST_LIKELY_TAG = 'NN'
 START = '*'
+START_TAG = 'START'
 STOP = '^'
+STOP_TAG = 'STOP'
+PLUS = '+'
+MINUS = '-'
+
+
+def extract_tag(tag):
+    if tag.startswith(PLUS) or tag.startswith(MINUS):
+        return tag
+    if PLUS in tag:
+        return tag.split(PLUS)[0]
+    if MINUS in tag:
+        return tag.split(MINUS)[0]
+    return tag
 
 
 class BaseTagger:
@@ -15,16 +29,19 @@ class BaseTagger:
     def train(self, train_set):
         for sentence in train_set:
             for word, tag in sentence:
+                tag = extract_tag(tag)
                 self.tag_word(word, tag)
         return self.dictionary
 
     def tag_word(self, word, tag):
+        tag = extract_tag(tag)
         word_dict = self.dictionary.get(word, {COUNTER_KEY: 0})
         word_dict[tag] = word_dict.get(tag, 0) + 1
         word_dict[COUNTER_KEY] += 1
         self.dictionary[word] = word_dict
 
     def probability_of_word(self, word, tag):
+        tag = extract_tag(tag)
         word_dict = self.dictionary.get(word, {})
         if not word_dict:
             return 0
@@ -47,6 +64,7 @@ class BaseTagger:
         unknown = []
         for sentence in test_set:
             for word, tag in sentence:
+                tag = extract_tag(tag)
                 if word in self.dictionary:
                     known.append((word, tag))
                 else:
@@ -55,15 +73,23 @@ class BaseTagger:
 
 
 class BiGramHMM:
-    def __init__(self):
+    def __init__(self, use_smoothing=False):
         self.tag_tag_dictionary = {}
         self.word_tag_dictionary = {}
+        self.use_smoothing = use_smoothing
+        self.tag_set = set()
+        self.word_set = set()
 
     def train(self, train_set):
         for sentence in train_set:
-            sentence_start_stop = [(START, START)] + sentence + [(STOP, STOP)]
+            sentence_start_stop = [(START, START_TAG)] + sentence + [(STOP, STOP_TAG)]
             for i, word_tag in enumerate(sentence_start_stop):
                 word, tag = word_tag
+                tag = extract_tag(tag)
+
+                self.word_set.add(word)
+                self.tag_set.add(tag)
+
                 self.tag_word(word, tag)
                 if i == 0:
                     continue
@@ -71,71 +97,66 @@ class BiGramHMM:
                 self.tag_tag(prev_tag=prev_tag, curr_tag=tag)
 
     def tag_tag(self, prev_tag, curr_tag):
+        prev_tag, curr_tag = extract_tag(prev_tag), extract_tag(curr_tag)
         tag_dict = self.tag_tag_dictionary.get(prev_tag, {COUNTER_KEY: 0})
         tag_dict[curr_tag] = tag_dict.get(curr_tag, 0) + 1
         tag_dict[COUNTER_KEY] += 1
         self.tag_tag_dictionary[prev_tag] = tag_dict
 
     def tag_word(self, word, tag):
+        tag = extract_tag(tag)
         tag_dict = self.word_tag_dictionary.get(tag, {COUNTER_KEY: 0})
         tag_dict[word] = tag_dict.get(word, 0) + 1
         tag_dict[COUNTER_KEY] += 1
         self.word_tag_dictionary[tag] = tag_dict
 
     def emission_probability(self, word, tag):
+        tag = extract_tag(tag)
         tag_dict = self.word_tag_dictionary.get(tag, {})
         if not tag_dict:
             return 0
-        return tag_dict.get(word, 0) / tag_dict[COUNTER_KEY]
+        emission = tag_dict.get(word, 0) / tag_dict[COUNTER_KEY]
+        return emission
 
     def transition_probability(self, prev_tag, curr_tag):
+        prev_tag, curr_tag = extract_tag(prev_tag), extract_tag(curr_tag)
         tag_dict = self.tag_tag_dictionary.get(prev_tag, {})
         if not tag_dict:
             return 0
-        return tag_dict.get(curr_tag, 0) / tag_dict[COUNTER_KEY]
-
-    def get_all_tags(self):
-        return set(self.tag_tag_dictionary.keys())
+        if self.use_smoothing:
+            transition = tag_dict.get(curr_tag, 0) + 1
+            transition /= tag_dict[COUNTER_KEY] + len(self.word_set)
+        else:
+            transition = tag_dict.get(curr_tag, 0) / tag_dict[COUNTER_KEY]
+        return transition
 
 
 def viterbi(sentence, hmm: BiGramHMM):
     def get_pi_value(word, tag, prev_tag):
-        return table[prev_tag] * hmm.transition_probability(prev_tag, tag)\
-               * hmm.emission_probability(word, tag)
-    n = len(sentence)
-    S = [{START}]
-    table = {START: 1}
-    for k in range(n):
-        word, _ = sentence[k]
-        S.append(hmm.get_all_tags())  # Sk = S
+        return hmm.transition_probability(prev_tag, tag) * hmm.emission_probability(word, tag)
+
+    S = [{START_TAG}]
+    table = [{START_TAG: 1}]
+    all_tags = hmm.tag_set
+    for k, (word, _) in enumerate(sentence):
+        S.append(all_tags)  # Sk = S
+        table.append({})
         for u in S[k+1]:
-            pi_values = [get_pi_value(word, tag=u, prev_tag=w) for w in S[k]]
+            pi_values = [table[k][w] * get_pi_value(word, tag=u, prev_tag=w) for w in S[k]]
             max_value = max(pi_values)
-            table[u] = max_value
-    return max(table[u] * hmm.transition_probability(u, STOP) for u in S[n])
+            table[k+1][u] = max_value
+    tags = []
+    for k, (word, _) in enumerate(sentence):
+        max_value_tag = max(all_tags, key=lambda u: table[k].get(u, 0) * hmm.transition_probability(u, STOP_TAG))
+        tags.append((word, max_value_tag))
+    return tags
 
 
-    # n = len(sentence)
-    # tags = list(hmm.word_tag_dictionary.keys())
-    # v = np.zeros((n, len(tags)))
-    # b = np.zeros((n, len(tags)))
-    # for i, word in enumerate(sentence):
-    #     for j, tag in enumerate(tags):
-    #         if i == 0:
-    #             v[i, j] = hmm.emission_probability(word, tag)
-    #             b[i, j] = 0
-    #         else:
-    #             v[i, j] = max([v[i - 1, k] * hmm.transition_probability(tags[k], tag) * hmm.emission_probability(word, tag) for k in
-    #                            range(len(tags))])
-    #             b[i, j] = np.argmax([v[i - 1, k] * hmm.transition_probability(tags[k], tag) for k in range(len(tags))])
-    # tags = []
-    # i = np.argmax(v[n - 1, :])
-    # tags.append(i)
-    # for j in range(n - 1, 0, -1):
-    #     i = int(b[j, int(i)])
-    #     tags.append(i)
-    # tags.reverse()
-    # return [(word, tags[i]) for i, word in enumerate(sentence)]
+def predict_viterbi_set(test_set, hmm: BiGramHMM):
+    predict_set = []
+    for sentence in test_set:
+        predict_set.append(viterbi(sentence, hmm))
+    return predict_set
 
 
 def accuracy(test_set, predicted_set):
@@ -171,7 +192,21 @@ def main():
 
     bigram = BiGramHMM()
     bigram.train(train)
-    print(f"Viterbi result is {viterbi(train[0], bigram)}")
+    predicted_known = predict_viterbi_set(known, bigram)
+    predicted_unknown = predict_viterbi_set(unknown, bigram)
+    predicted = predict_viterbi_set(test, bigram)
+    print('Error rate on known words viterbi: {}'.format(1 - accuracy(known, predicted_known)))
+    print('Error rate on unknown words viterbi: {}'.format(1 - accuracy(unknown, predicted_unknown)))
+    print('Error rate all words viterbi: {}'.format(1 - accuracy(test, predicted)))
+
+    bigram = BiGramHMM(use_smoothing=True)
+    bigram.train(train)
+    predicted_known = predict_viterbi_set(known, bigram)
+    predicted_unknown = predict_viterbi_set(unknown, bigram)
+    predicted = predict_viterbi_set(test, bigram)
+    print('Error rate on known words viterbi and add one: {}'.format(1 - accuracy(known, predicted_known)))
+    print('Error rate on unknown words viterbi and add one: {}'.format(1 - accuracy(unknown, predicted_unknown)))
+    print('Error rate all words viterbi and add one: {}'.format(1 - accuracy(test, predicted)))
 
 
 def get_section_from_corpus(section):
