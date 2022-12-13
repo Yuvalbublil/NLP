@@ -354,7 +354,6 @@ def train_epoch(model, data_iterator, optimizer, criterion: nn.BCEWithLogitsLoss
         optimizer.step()
 
 
-
 def evaluate(model: nn.Module, data_iterator: DataLoader, criterion):
     """
     evaluate the model performance on the given data
@@ -415,7 +414,6 @@ def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.)
         train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
 
 
-
 def train_and_evaluate(model, data_manager: DataManager, n_epochs, lr, weight_decay, subsets_loss, subsets_acc):
     train_model(model, data_manager, n_epochs, lr, weight_decay)
 
@@ -426,17 +424,65 @@ def train_and_evaluate(model, data_manager: DataManager, n_epochs, lr, weight_de
 
 
 
+
+def pickle_handler_load(results_dir):
+    dirname = os.path.dirname(__file__)
+    abs_results_dir = os.path.join(dirname, results_dir)
+    if not os.path.exists(abs_results_dir):
+        return None, None, None
+    try:
+        trained_model = load_pickle(os.path.join(abs_results_dir, 'model.pkl'))
+        subsets_loss = load_pickle(os.path.join(abs_results_dir, "loss.pkl"))
+        subsets_acc = load_pickle(os.path.join(abs_results_dir, "accuracy.pkl"))
+        return trained_model, subsets_loss, subsets_acc
+    except FileNotFoundError:
+        return None, None, None
+
+
+def pickle_handler_save(model, subsets_loss, subsets_acc, results_dir: str):
+    dirname = os.path.dirname(__file__)
+    abs_results_dir = os.path.join(dirname, results_dir)
+    os.mkdir(abs_results_dir)
+    save_pickle(model, os.path.join(abs_results_dir, 'model.pkl'))
+    save_pickle(subsets_loss, os.path.join(abs_results_dir, "loss.pkl"))
+    save_pickle(subsets_acc, os.path.join(abs_results_dir, "accuracy.pkl"))
+
+
+
+def plot_evaluation(subsets_loss, subsets_acc, model_name, results_dir):
+
+    ## Plotting the loss
+    plt.plot(subsets_loss[TRAIN], label='train loss')
+    plt.plot(subsets_loss[VAL], label='validation loss')
+    plt.legend()
+    plt.title(f'{model_name} loss: train vs validation')
+    plt.xlabel('epoch number')
+    plt.ylabel('loss')
+    plt.xticks(range(len(subsets_loss[TRAIN])))
+    plt.savefig(f'{results_dir}/{model_name}_loss.png')
+    plt.show()
+    ## Plotting the accuracy
+    plt.plot(subsets_acc[TRAIN], label='train accuracy')
+    plt.plot(subsets_acc[VAL], label='validation accuracy')
+    plt.legend()
+    plt.title(f'{model_name} accuracy: train vs validation')
+    plt.xlabel('epoch number')
+    plt.ylabel('accuracy')
+    plt.xticks(range(len(subsets_acc[TRAIN])))
+    plt.savefig(f'{results_dir}/{model_name}_accuracy.png')
+    plt.show()
+
 def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
     results_dir = PATHS[data_type]
     plot_name = f"Log Linear {data_type} Model"
-    trained_model, train_loss, val_loss = pickle_handler_load(results_dir)
+    trained_model, subsets_loss, subsets_acc = pickle_handler_load(results_dir)
 
     if trained_model:
         if evaluate_on_test:
-            plot_evaluation(train_loss, val_loss, plot_name, results_dir)
+            plot_evaluation(subsets_loss, subsets_acc, plot_name, results_dir)
         return
 
     data_manager = DataManager(data_type=data_type, batch_size=64)
@@ -452,43 +498,10 @@ def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
             train_and_evaluate(model, data_manager, n_epochs, lr, weight_decay, subsets_loss, subsets_acc)
         else:
             train_model(model, data_manager, n_epochs, lr, weight_decay)
-
+    pickle_handler_save(model, subsets_loss, subsets_acc, PATHS[data_type])
     if evaluate_on_test:
-        plot_evaluation(subsets_loss[TRAIN], subsets_loss[VAL], f"{plot_name} - Loss", PATHS[data_type])
-        plot_evaluation(subsets_acc[TRAIN], subsets_acc[VAL], f"{plot_name} - Accuracy", PATHS[data_type])
-    pickle_handler_save(model, subsets_loss[TRAIN], subsets_loss[VAL], PATHS[data_type])
+        plot_evaluation(subsets_loss, subsets_acc, plot_name, PATHS[data_type])
     return model
-
-def pickle_handler_load(results_dir):
-    dirname = os.path.dirname(__file__)
-    abs_results_dir = os.path.join(dirname, results_dir)
-    if not os.path.exists(abs_results_dir):
-        return None, None, None
-    try:
-        trained_model = load_pickle(os.path.join(abs_results_dir,'model.pkl'))
-        train_loss, val_loss = load_pickle(os.path.join(abs_results_dir,"loss.pkl"))
-        return trained_model, train_loss, val_loss
-    except FileNotFoundError:
-        return None, None, None
-
-def pickle_handler_save(model, train_loss, val_loss,results_dir: str):
-    dirname = os.path.dirname(__file__)
-    abs_results_dir = os.path.join(dirname, results_dir)
-    os.mkdir(abs_results_dir)
-    save_pickle(model, os.path.join(abs_results_dir,'model.pkl'))
-    save_pickle((train_loss, val_loss),os.path.join(abs_results_dir,"loss.pkl"))
-
-def plot_evaluation(train_loss_arr, val_loss_arr, model_name, results_dir):
-    plt.plot(train_loss_arr, label='train loss')
-    plt.plot(val_loss_arr, label='validation loss')
-    plt.legend()
-    plt.title(f'{model_name} loss: train vs validation')
-    plt.xlabel('epoch number')
-    plt.ylabel('loss')
-    plt.xticks(range(len(train_loss_arr)))
-    plt.savefig(f'{results_dir}/{model_name}_loss.png')
-    plt.show()
-
 
 def train_log_linear_with_one_hot():
     """
@@ -509,10 +522,41 @@ def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
-    return
+    """
+      Here comes your code for training and evaluation of the log linear model with one hot representation.
+      """
+    evaluate_on_test = True
+    data_type = W2V_SEQUENCE
+    results_dir = PATHS[data_type]
+    plot_name = f"LSTM {data_type} Model"
+    trained_model, subsets_loss, subsets_acc = pickle_handler_load(results_dir)
+
+    if trained_model:
+        if evaluate_on_test:
+            plot_evaluation(subsets_loss, subsets_acc, plot_name, results_dir)
+        return
+
+    data_manager = DataManager(data_type=data_type, batch_size=64)
+    embedding_dim = data_manager.get_input_shape()[0]
+    model = LSTM(embedding_dim=embedding_dim, dropout=0.5, hidden_dim=100, num_layers=2)
+
+    n_epochs, lr, weight_decay = 1, 0.001, 0.0001
+    subsets_loss = {TRAIN: [], VAL: [], TEST: []}
+    subsets_acc = {TRAIN: [], VAL: [], TEST: []}
+
+    for epoch in range(4):
+        if evaluate_on_test:
+            train_and_evaluate(model, data_manager, n_epochs, lr, weight_decay, subsets_loss, subsets_acc)
+        else:
+            train_model(model, data_manager, n_epochs, lr, weight_decay)
+
+    pickle_handler_save(model, subsets_loss, subsets_acc, PATHS[data_type])
+    if evaluate_on_test:
+        plot_evaluation(subsets_loss, subsets_acc, plot_name, PATHS[data_type])
+    return model
 
 
 if __name__ == '__main__':
-    train_log_linear_with_one_hot()
+    # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
