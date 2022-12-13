@@ -417,16 +417,17 @@ def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.)
 
 
 @profile
-def train_log_linear(data_type=ONEHOT_AVERAGE):
+def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
     results_dir = PATHS[data_type]
     plot_name = f"Log Linear {data_type} Model"
-    train_loss, trained_model, val_loss = pickle_handler(results_dir)
+    trained_model,train_loss,  val_loss = pickle_handler_load(results_dir)
 
-    if trained_model is not None:
-        plot_evaluation(train_loss, val_loss, plot_name, results_dir)
+    if trained_model:
+        if evaluate_on_test:
+            plot_evaluation(train_loss, val_loss, plot_name, results_dir)
         return
 
     data_manager = DataManager(data_type=data_type, batch_size=64)
@@ -436,22 +437,30 @@ def train_log_linear(data_type=ONEHOT_AVERAGE):
     train_loss_arr = []
     for epoch in range(1):
         train_model(model, data_manager, n_epochs=1, lr=0.01, weight_decay=0.001)
-        val_loss, _ = evaluate(model, data_manager.get_torch_iterator(VAL), nn.BCEWithLogitsLoss())
-        train_loss, _ = evaluate(model, data_manager.get_torch_iterator(TRAIN), nn.BCEWithLogitsLoss())
+        if evaluate_on_test:
+            val_loss, _ = evaluate(model, data_manager.get_torch_iterator(VAL), nn.BCEWithLogitsLoss())
+            train_loss, _ = evaluate(model, data_manager.get_torch_iterator(TRAIN), nn.BCEWithLogitsLoss())
         train_loss_arr.append(train_loss)
         val_loss_arr.append(val_loss)
-    plot_evaluation(train_loss_arr, val_loss_arr,plot_name, PATHS[data_type])
+    if evaluate_on_test:
+        plot_evaluation(train_loss_arr, val_loss_arr,plot_name, PATHS[data_type])
+    pickle_handler_save(model, train_loss_arr, val_loss_arr, PATHS[data_type])
+    return model
 
+def pickle_handler_load(results_dir):
+    if not os.path.exists(results_dir):
+        return None, None, None
+    trained_model = load_pickle(f"{results_dir}/model.pkl")
+    train_loss, val_loss = load_pickle(f"{results_dir}/loss.pkl")
+    return trained_model,train_loss, val_loss
 
-def pickle_handler(results_dir):
+def pickle_handler_save(results_dir, model, train_loss, val_loss):
+    os.mkdir(results_dir)
     if not os.path.exists(results_dir):
         os.mkdir(results_dir)
         return None, None, None
-    else:
-        trained_model = load_pickle(f"{results_dir}/model.pkl")
-        train_loss, val_loss = load_pickle(f"{results_dir}/loss.pkl")
-        return train_loss, trained_model, val_loss
-
+    save_pickle(f"{results_dir}/model.pkl", model)
+    save_pickle(f"{results_dir}/loss.pkl", (train_loss, val_loss))
 
 def plot_evaluation(train_loss_arr, val_loss_arr, model_name, results_dir):
     plt.plot(train_loss_arr, label='train loss')
@@ -465,7 +474,6 @@ def plot_evaluation(train_loss_arr, val_loss_arr, model_name, results_dir):
     plt.show()
 
 
-@profile
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
