@@ -122,7 +122,10 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     """
     vec = np.zeros(embedding_dim)
     for word in sent:
-        vec += word_to_vec[word][:embedding_dim]
+        if word not in word_to_vec:
+            vec += np.zeros(embedding_dim)
+        else:
+            vec += word_to_vec[word][:embedding_dim]
     return vec / len(sent)
 
 
@@ -522,9 +525,6 @@ def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
-    """
-      Here comes your code for training and evaluation of the log linear model with one hot representation.
-      """
     evaluate_on_test = True
     data_type = W2V_SEQUENCE
     results_dir = PATHS[data_type]
@@ -560,5 +560,5 @@ if __name__ == '__main__':
     # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
-    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64)
+    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     embedding_dim = data_manager.get_input_shape()[0]
