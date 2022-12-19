@@ -121,12 +121,15 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :return The average embedding vector as numpy ndarray.
     """
     vec = np.zeros(embedding_dim)
-    for word in sent:
-        if word not in word_to_vec:
-            vec += np.zeros(embedding_dim)
-        else:
-            vec += word_to_vec[word][:embedding_dim]
-    return vec / len(sent)
+    for word in sent.text:
+        vec += get_vec_for_word2vec(embedding_dim, word, word_to_vec)
+    return vec / len(sent.text)
+
+
+def get_vec_for_word2vec(embedding_dim, word, word_to_vec):
+    if word not in word_to_vec:
+        return np.zeros(embedding_dim)
+    return word_to_vec[word][:embedding_dim]
 
 
 def get_one_hot(size, ind):
@@ -180,7 +183,7 @@ def sentence_to_embedding(sent: data_loader.Sentence, word_to_vec: dict, seq_len
     for i, word in enumerate(sent.text):
         if i >= seq_len:
             break
-        vec[i] = word_to_vec[word][:embedding_dim]
+        vec[i] = get_vec_for_word2vec(embedding_dim, word, word_to_vec)
     return vec
 
 
@@ -217,7 +220,7 @@ class DataManager():
 
     def __init__(self, data_type=ONEHOT_AVERAGE, use_sub_phrases=True, dataset_path="stanfordSentimentTreebank",
                  batch_size=50,
-                 embedding_dim=None):
+                 embedding_dim=300):
         """
         builds the data manager used for training and evaluation.
         :param data_type: one of ONEHOT_AVERAGE, W2V_AVERAGE and W2V_SEQUENCE
@@ -538,7 +541,7 @@ def train_lstm_with_w2v():
 
     data_manager = DataManager(data_type=data_type, batch_size=64)
     embedding_dim = data_manager.get_input_shape()[0]
-    model = LSTM(embedding_dim=embedding_dim, dropout=0.5, hidden_dim=100, num_layers=2)
+    model = LSTM(embedding_dim=embedding_dim, dropout=0.5, hidden_dim=100, n_layers=2)
 
     n_epochs, lr, weight_decay = 1, 0.001, 0.0001
     subsets_loss = {TRAIN: [], VAL: [], TEST: []}
@@ -551,6 +554,7 @@ def train_lstm_with_w2v():
             train_model(model, data_manager, n_epochs, lr, weight_decay)
 
     pickle_handler_save(model, subsets_loss, subsets_acc, PATHS[data_type])
+
     if evaluate_on_test:
         plot_evaluation(subsets_loss, subsets_acc, plot_name, PATHS[data_type])
     return model
@@ -559,6 +563,10 @@ def train_lstm_with_w2v():
 if __name__ == '__main__':
     # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
-    # train_lstm_with_w2v()
-    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
-    embedding_dim = data_manager.get_input_shape()[0]
+    train_lstm_with_w2v()
+    # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
+    # embedding_dim = data_manager.get_input_shape()[0]
+    import winsound
+    duration = 250  # milliseconds
+    freq = 440  # Hz
+    winsound.Beep(freq, duration)
