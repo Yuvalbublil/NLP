@@ -12,6 +12,7 @@ import data_loader
 import pickle
 import tqdm
 import gensim
+from multiprocessing import Pool
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -560,8 +561,31 @@ def train_lstm_with_w2v():
     return model
 
 
+def pooler(data_type):
+    if data_type == ONEHOT_AVERAGE:
+        return train_log_linear_with_one_hot()
+    elif data_type == W2V_AVERAGE:
+        return train_log_linear_with_w2v()
+    elif data_type == W2V_SEQUENCE:
+        return train_lstm_with_w2v()
+    else:
+        raise Exception("Data type not supported")
+
+def print_results_from_pickle(data_type):
+    trained_model, subsets_loss, subsets_acc = pickle_handler_load(PATHS[data_type])
+    print(f"Model: {data_type}")
+    print(f"Test Loss: {subsets_loss[TEST][-1]: .3f}%")
+    print(f"Test Accuracy: {subsets_acc[TEST][-1]: .3f}%")
+    print(f"Validation Loss: {subsets_loss[VAL][-1]: .3f}%")
+    print(f"Validation Accuracy: {subsets_acc[VAL][-1]: .3f}%")
+    print()
+
+
 if __name__ == '__main__':
-    model = pickle_handler_load(PATHS[W2V_SEQUENCE])[0]
+    # with Pool(2) as p:
+    #     p.map(pooler, [ONEHOT_AVERAGE, W2V_AVERAGE])
+    for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE]:
+        print_results_from_pickle(data_type)
     # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
 
@@ -572,12 +596,12 @@ if __name__ == '__main__':
     duration = 250  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
-    """
-    TODO:
-    1. Compare (test accuracy, validation accuracy) the two log-linear model. 
-        Which one performs better? Provide a possible explanation for the results you have.
-    2. Compare the LSTM model. 
-        Which one performs better? Provide an explanation for the results you received.
-    3. Compare all the models had on the 2 special subsets of sentences we've provided you. 
-        For each subset, highest result (and the lowest result). Provide a possible explanation for these results.
-    """
+"""
+TODO:
+1. Compare (test accuracy, validation accuracy) the two log-linear model. 
+    Which one performs better? Provide a possible explanation for the results you have.
+2. Compare the LSTM model. 
+    Which one performs better? Provide an explanation for the results you received.
+3. Compare all the models had on the 2 special subsets of sentences we've provided you. 
+    For each subset, highest result (and the lowest result). Provide a possible explanation for these results.
+"""
