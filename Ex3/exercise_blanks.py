@@ -559,9 +559,10 @@ def train_lstm_with_w2v():
     return model
 
 
-def main():
-    train_log_linear_with_one_hot()
-    train_log_linear_with_w2v()
+if __name__ == '__main__':
+    # train_log_linear_with_one_hot()
+    # train_log_linear_with_w2v()
+
     train_lstm_with_w2v()
     # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     # embedding_dim = data_manager.get_input_shape()[0]
@@ -570,6 +571,12 @@ def main():
     freq = 440  # Hz
     winsound.Beep(freq, duration)
 
-
-if __name__ == '__main__':
-    # main()
+    """
+    TODO:
+    1. Compare (test accuracy, validation accuracy) the two log-linear model. 
+        Which one performs better? Provide a possible explanation for the results you have.
+    2. Compare the LSTM model. 
+        Which one performs better? Provide an explanation for the results you received.
+    3. Compare all the models had on the 2 special subsets of sentences we've provided you. 
+        For each subset, highest result (and the lowest result). Provide a possible explanation for these results.
+    """
