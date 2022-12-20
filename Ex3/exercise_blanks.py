@@ -340,7 +340,8 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    return torch.sum(torch.round(preds) == torch.round(y)).item() / y.size(0)
+    preds = torch.round(torch.sigmoid(preds))
+    return torch.sum(preds == torch.round(y)).item() / y.size(0)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion: nn.BCEWithLogitsLoss):
@@ -560,17 +561,17 @@ def train_lstm_with_w2v():
 
 
 if __name__ == '__main__':
+    model = pickle_handler_load(PATHS[W2V_SEQUENCE])[0]
     # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
 
-    train_lstm_with_w2v()
+    # train_lstm_with_w2v()
     # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     # embedding_dim = data_manager.get_input_shape()[0]
     import winsound
     duration = 250  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
-
     """
     TODO:
     1. Compare (test accuracy, validation accuracy) the two log-linear model. 
