@@ -571,3 +571,13 @@ if __name__ == '__main__':
     duration = 250  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
+
+    """
+    TODO:
+    1. Compare (test accuracy, validation accuracy) the two log-linear model. 
+        Which one performs better? Provide a possible explanation for the results you have.
+    2. Compare the LSTM model. 
+        Which one performs better? Provide an explanation for the results you received.
+    3. Compare all the models had on the 2 special subsets of sentences we've provided you. 
+        For each subset, highest result (and the lowest result). Provide a possible explanation for these results.
+    """
