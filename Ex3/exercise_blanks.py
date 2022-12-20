@@ -179,7 +179,8 @@ def sentence_to_embedding(sent: data_loader.Sentence, word_to_vec: dict, seq_len
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
-    vec = np.zeros((seq_len, embedding_dim))
+    vec = np.zeros((seq_len,
+                    embedding_dim))  # TODO: maybe need to switch between shape (seq_len, embedding_dim) and (embedding_dim, seq_len)
     for i, word in enumerate(sent.text):
         if i >= seq_len:
             break
@@ -429,8 +430,6 @@ def train_and_evaluate(model, data_manager: DataManager, n_epochs, lr, weight_de
         subsets_acc[subset].append(accuracy)
 
 
-
-
 def pickle_handler_load(results_dir):
     dirname = os.path.dirname(__file__)
     abs_results_dir = os.path.join(dirname, results_dir)
@@ -454,9 +453,7 @@ def pickle_handler_save(model, subsets_loss, subsets_acc, results_dir: str):
     save_pickle(subsets_acc, os.path.join(abs_results_dir, "accuracy.pkl"))
 
 
-
 def plot_evaluation(subsets_loss, subsets_acc, model_name, results_dir):
-
     ## Plotting the loss
     plt.plot(subsets_loss[TRAIN], label='train loss')
     plt.plot(subsets_loss[VAL], label='validation loss')
@@ -477,6 +474,7 @@ def plot_evaluation(subsets_loss, subsets_acc, model_name, results_dir):
     plt.xticks(range(len(subsets_acc[TRAIN])))
     plt.savefig(f'{results_dir}/{model_name}_accuracy.png')
     plt.show()
+
 
 def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     """
@@ -508,6 +506,7 @@ def train_log_linear(data_type=ONEHOT_AVERAGE, evaluate_on_test=True):
     if evaluate_on_test:
         plot_evaluation(subsets_loss, subsets_acc, plot_name, PATHS[data_type])
     return model
+
 
 def train_log_linear_with_one_hot():
     """
@@ -563,10 +562,12 @@ def train_lstm_with_w2v():
 if __name__ == '__main__':
     # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
+
     train_lstm_with_w2v()
     # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     # embedding_dim = data_manager.get_input_shape()[0]
     import winsound
+
     duration = 250  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
