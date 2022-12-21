@@ -252,15 +252,15 @@ class DataManager():
             self.sent_func_kwargs = {"word_to_ind": get_word_to_ind(words_list)}
         elif data_type == W2V_SEQUENCE:
             self.sent_func = sentence_to_embedding
-            word_to_vec = {} # create_or_load_slim_w2v(words_list)
+            word_to_vec = create_or_load_slim_w2v(words_list)
             self.sent_func_kwargs = {"seq_len": SEQ_LEN,
                                      "word_to_vec": word_to_vec,
                                      "embedding_dim": embedding_dim
                                      }
         elif data_type == W2V_AVERAGE:
             self.sent_func = get_w2v_average
-            word_to_vec = {} # create_or_load_slim_w2v(words_list)
-            self.sent_func_kwargs = {"word_to_vec": word_to_vec,
+            words_list = list(self.sentiment_dataset.get_word_counts().keys())
+            self.sent_func_kwargs = {"word_to_vec": create_or_load_slim_w2v(words_list),
                                      "embedding_dim": embedding_dim
                                      }
         else:
@@ -314,8 +314,8 @@ class LSTM(nn.Module):
         text = text.transpose(0, 1).float()
         lstm_out, (hidden, _) = self.lstm.forward(text)
         in_dropout = torch.concat([hidden[0, :, :], hidden[1, :, :]], dim=1)
-        out_dropout = self.dropout(in_dropout)
-        out = self.linear(out_dropout)
+        # out_dropout = self.dropout(in_dropout)
+        out = self.linear(in_dropout)
         return out
 
     def predict(self, text):
@@ -408,11 +408,13 @@ def get_predictions_for_data(model, data_iter: DataLoader):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    y_pred = []
+    y_pred = np.ndarray([])
+    y_arr = np.ndarray([])
     for batch in data_iter:
-        x, _ = batch
-        y_pred.extend(model(x))
-    return y_pred
+        x, y = batch
+        np.concatenate(y_pred, model.predict(x).squeeze())
+        np.concatenate(y_arr, y)
+    return np.ndarray(y_pred)
 
 
 def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.):
@@ -589,6 +591,20 @@ def print_results_from_pickle(data_type):
     print()
 
 
+def test_data_on_special_subsets(data_type):
+    trained_model, subsets_loss, subsets_acc = pickle_handler_load(PATHS[data_type])
+    data_manager = DataManager(data_type=data_type, batch_size=64)
+    test_sentences = data_manager.sentences[TEST]
+    # loss, accuracy = evaluate(trained_model, data_manager.get_torch_iterator(TEST), nn.BCEWithLogitsLoss())
+    indices = data_loader.get_negated_polarity_examples(test_sentences)
+
+    ## now we wnat to get
+    print(f"Model: {data_type}")
+    print(f"Test Loss: {loss: .3f}%")
+    # print(f"Test Accuracy: {acc: .3f}%")
+    print()
+    pass
+
 if __name__ == '__main__':
     # with Pool(2) as p:
     #     p.map(pooler, [ONEHOT_AVERAGE, W2V_AVERAGE])
@@ -597,12 +613,13 @@ if __name__ == '__main__':
 
     train_lstm_with_w2v()
 
-    # for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE, W2V_SEQUENCE]:
-    #     print_results_from_pickle(data_type)
+    for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE, W2V_SEQUENCE]:
+        print_results_from_pickle(data_type)
+
     # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     # embedding_dim = data_manager.get_input_shape()[0]
     import winsound
-    duration = 50-+0  # milliseconds
+    duration = 250  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
 """
