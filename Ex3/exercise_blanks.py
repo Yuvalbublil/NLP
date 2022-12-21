@@ -251,9 +251,9 @@ class DataManager():
             self.sent_func_kwargs = {"word_to_ind": get_word_to_ind(words_list)}
         elif data_type == W2V_SEQUENCE:
             self.sent_func = sentence_to_embedding
-
+            word_to_vec = create_or_load_slim_w2v(words_list)
             self.sent_func_kwargs = {"seq_len": SEQ_LEN,
-                                     "word_to_vec": create_or_load_slim_w2v(words_list),
+                                     "word_to_vec": word_to_vec,
                                      "embedding_dim": embedding_dim
                                      }
         elif data_type == W2V_AVERAGE:
@@ -301,17 +301,24 @@ class LSTM(nn.Module):
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
         super(LSTM, self).__init__()
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, n_layers, dropout=dropout, bidirectional=True)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, n_layers, bidirectional=True)
+        self.linear = nn.Linear(hidden_dim * 2, 1)
+        self.dropout = nn.Dropout(dropout)
 
-    def forward(self, text):
+    def forward(self, text: torch.Tensor):
         """
         :param text: a tensor batch of sentences. shape: (batch_size, seq_len, embedding_dim)
         :return:
         """
-        return self.lstm.forward(text)
+        text = text.float()
+        lstm_out, hidden = self.lstm.forward(text)
+        in_dropout = lstm_out[:, -1]
+        out_dropout = self.dropout(in_dropout)
+        out = self.linear(out_dropout)
+        return out
 
     def predict(self, text):
-        return self.forward(text)[0]
+        return torch.sigmoid(self.forward(text))
 
 
 class LogLinear(nn.Module):
@@ -341,7 +348,7 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    preds = torch.round(torch.sigmoid(preds))
+    preds = torch.round(preds)
     return torch.sum(preds == torch.round(y)).item() / y.size(0)
 
 
@@ -541,7 +548,7 @@ def train_lstm_with_w2v():
         return
 
     data_manager = DataManager(data_type=data_type, batch_size=64)
-    embedding_dim = data_manager.get_input_shape()[0]
+    embedding_dim = data_manager.get_input_shape()[1]
     model = LSTM(embedding_dim=embedding_dim, dropout=0.5, hidden_dim=100, n_layers=2)
 
     n_epochs, lr, weight_decay = 1, 0.001, 0.0001
@@ -584,16 +591,17 @@ def print_results_from_pickle(data_type):
 if __name__ == '__main__':
     # with Pool(2) as p:
     #     p.map(pooler, [ONEHOT_AVERAGE, W2V_AVERAGE])
-    for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE]:
-        print_results_from_pickle(data_type)
     # train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
 
-    # train_lstm_with_w2v()
+    train_lstm_with_w2v()
+
+    for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE, W2V_SEQUENCE]:
+        print_results_from_pickle(data_type)
     # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     # embedding_dim = data_manager.get_input_shape()[0]
     import winsound
-    duration = 250  # milliseconds
+    duration = 50-+0  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
 """
