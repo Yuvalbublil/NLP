@@ -244,6 +244,7 @@ class DataManager():
         self.sentences[VAL] = self.sentiment_dataset.get_validation_set()
         self.sentences[TEST] = self.sentiment_dataset.get_test_set()
 
+
         # map data splits to sentence input preperation functions
         words_list = list(self.sentiment_dataset.get_word_counts().keys())
         if data_type == ONEHOT_AVERAGE:
@@ -251,15 +252,15 @@ class DataManager():
             self.sent_func_kwargs = {"word_to_ind": get_word_to_ind(words_list)}
         elif data_type == W2V_SEQUENCE:
             self.sent_func = sentence_to_embedding
-            word_to_vec = create_or_load_slim_w2v(words_list)
+            word_to_vec = {} # create_or_load_slim_w2v(words_list)
             self.sent_func_kwargs = {"seq_len": SEQ_LEN,
                                      "word_to_vec": word_to_vec,
                                      "embedding_dim": embedding_dim
                                      }
         elif data_type == W2V_AVERAGE:
             self.sent_func = get_w2v_average
-            words_list = list(self.sentiment_dataset.get_word_counts().keys())
-            self.sent_func_kwargs = {"word_to_vec": create_or_load_slim_w2v(words_list),
+            word_to_vec = {} # create_or_load_slim_w2v(words_list)
+            self.sent_func_kwargs = {"word_to_vec": word_to_vec,
                                      "embedding_dim": embedding_dim
                                      }
         else:
@@ -310,9 +311,9 @@ class LSTM(nn.Module):
         :param text: a tensor batch of sentences. shape: (batch_size, seq_len, embedding_dim)
         :return:
         """
-        text = text.float()
-        lstm_out, hidden = self.lstm.forward(text)
-        in_dropout = lstm_out[:, -1]
+        text = text.transpose(0, 1).float()
+        lstm_out, (hidden, _) = self.lstm.forward(text)
+        in_dropout = torch.concat([hidden[0, :, :], hidden[1, :, :]], dim=1)
         out_dropout = self.dropout(in_dropout)
         out = self.linear(out_dropout)
         return out
@@ -549,7 +550,7 @@ def train_lstm_with_w2v():
 
     data_manager = DataManager(data_type=data_type, batch_size=64)
     embedding_dim = data_manager.get_input_shape()[1]
-    model = LSTM(embedding_dim=embedding_dim, dropout=0.5, hidden_dim=100, n_layers=2)
+    model = LSTM(embedding_dim=embedding_dim, dropout=0.5, hidden_dim=100, n_layers=1)
 
     n_epochs, lr, weight_decay = 1, 0.001, 0.0001
     subsets_loss = {TRAIN: [], VAL: [], TEST: []}
@@ -596,8 +597,8 @@ if __name__ == '__main__':
 
     train_lstm_with_w2v()
 
-    for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE, W2V_SEQUENCE]:
-        print_results_from_pickle(data_type)
+    # for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE, W2V_SEQUENCE]:
+    #     print_results_from_pickle(data_type)
     # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     # embedding_dim = data_manager.get_input_shape()[0]
     import winsound
