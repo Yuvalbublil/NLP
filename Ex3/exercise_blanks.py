@@ -214,6 +214,9 @@ class OnlineDataset(Dataset):
         return sent_emb, sent_label
 
 
+word_to_vec_dict = {}
+
+
 class DataManager():
     """
     Utility class for handling all data management task. Can be used to get iterators for training and
@@ -244,23 +247,24 @@ class DataManager():
         self.sentences[VAL] = self.sentiment_dataset.get_validation_set()
         self.sentences[TEST] = self.sentiment_dataset.get_test_set()
 
-
         # map data splits to sentence input preperation functions
         words_list = list(self.sentiment_dataset.get_word_counts().keys())
+        global word_to_vec_dict
+        if not word_to_vec_dict:
+            word_to_vec_dict = create_or_load_slim_w2v(words_list)
+
         if data_type == ONEHOT_AVERAGE:
             self.sent_func = average_one_hots
             self.sent_func_kwargs = {"word_to_ind": get_word_to_ind(words_list)}
         elif data_type == W2V_SEQUENCE:
             self.sent_func = sentence_to_embedding
-            word_to_vec = create_or_load_slim_w2v(words_list)
             self.sent_func_kwargs = {"seq_len": SEQ_LEN,
-                                     "word_to_vec": word_to_vec,
+                                     "word_to_vec": word_to_vec_dict,
                                      "embedding_dim": embedding_dim
                                      }
         elif data_type == W2V_AVERAGE:
             self.sent_func = get_w2v_average
-            words_list = list(self.sentiment_dataset.get_word_counts().keys())
-            self.sent_func_kwargs = {"word_to_vec": create_or_load_slim_w2v(words_list),
+            self.sent_func_kwargs = {"word_to_vec": word_to_vec_dict,
                                      "embedding_dim": embedding_dim
                                      }
         else:
@@ -341,7 +345,7 @@ class LogLinear(nn.Module):
 # ------------------------- training functions -------------
 
 
-def binary_accuracy(preds, y):
+def binary_accuracy(preds: torch.Tensor, y):
     """
     This method returns tha accuracy of the predictions, relative to the labels.
     You can choose whether to use numpy arrays or tensors here.
@@ -349,7 +353,10 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
+    preds = torch.sigmoid(preds)
     preds = torch.round(preds)
+    if y.size(0) == 0:
+        return 0
     return torch.sum(preds == torch.round(y)).item() / y.size(0)
 
 
@@ -398,7 +405,7 @@ def evaluate_helper(accuracy, batch, criterion, loss, model):
     return accuracy, loss
 
 
-def get_predictions_for_data(model, data_iter: DataLoader):
+def get_predictions_for_data(model, data_iter: DataLoader, indices: list):
     """
 
     This function should iterate over all batches of examples from data_iter and return all of the models
@@ -406,15 +413,16 @@ def get_predictions_for_data(model, data_iter: DataLoader):
     same order of the examples returned by data_iter.
     :param model: one of the models you implemented in the exercise
     :param data_iter: torch iterator as given by the DataManager
-    :return:
+    :return: y_pred,y_true
     """
-    y_pred = np.ndarray([])
-    y_arr = np.ndarray([])
-    for batch in data_iter:
-        x, y = batch
-        np.concatenate(y_pred, model.predict(x).squeeze())
-        np.concatenate(y_arr, y)
-    return np.ndarray(y_pred)
+    y_pred = torch.Tensor([])
+    y_arr = torch.Tensor([])
+    for i, batch in enumerate(data_iter):
+        if i in indices:
+            x, y = batch
+            y_pred = torch.concatenate((y_pred, model.predict(x).squeeze(0)))
+            y_arr = torch.concatenate((y_arr, y))
+    return y_pred, y_arr
 
 
 def train_model(model, data_manager: DataManager, n_epochs, lr, weight_decay=0.):
@@ -581,6 +589,7 @@ def pooler(data_type):
     else:
         raise Exception("Data type not supported")
 
+
 def print_results_from_pickle(data_type):
     trained_model, subsets_loss, subsets_acc = pickle_handler_load(PATHS[data_type])
     print(f"Model: {data_type}")
@@ -593,17 +602,38 @@ def print_results_from_pickle(data_type):
 
 def test_data_on_special_subsets(data_type):
     trained_model, subsets_loss, subsets_acc = pickle_handler_load(PATHS[data_type])
-    data_manager = DataManager(data_type=data_type, batch_size=64)
+    data_manager = DataManager(data_type=data_type, batch_size=1)
     test_sentences = data_manager.sentences[TEST]
     # loss, accuracy = evaluate(trained_model, data_manager.get_torch_iterator(TEST), nn.BCEWithLogitsLoss())
-    indices = data_loader.get_negated_polarity_examples(test_sentences)
-
-    ## now we wnat to get
+    negated_indices = data_loader.get_negated_polarity_examples(test_sentences)
+    neg_y_pred, neg_y_true = get_predictions_for_data(trained_model, data_manager.get_torch_iterator(TEST),
+                                                      negated_indices)
+    neg_acc = binary_accuracy(neg_y_pred, neg_y_true)
+    neg_loss = nn.BCEWithLogitsLoss()(neg_y_pred, neg_y_true)
     print(f"Model: {data_type}")
-    print(f"Test Loss: {loss: .3f}%")
-    # print(f"Test Accuracy: {acc: .3f}%")
+    print(f"Negated Polarity Loss: {neg_loss: .3f}%")
+    print(f"Negated Polarity Accuracy: {neg_acc: .3f}%")
     print()
-    pass
+    dataset_path = "stanfordSentimentTreebank"
+    data_manager = DataManager(data_type=data_type, batch_size=1)
+    rare_indices = data_loader.get_rare_words_examples(test_sentences,
+                                                       data_loader.SentimentTreeBank(dataset_path, split_words=True))
+    rare_y_pred, rare_y_true = get_predictions_for_data(trained_model, data_manager.get_torch_iterator(TEST),
+                                                        rare_indices)
+    rare_acc = binary_accuracy(rare_y_pred, rare_y_true)
+    rare_loss = nn.BCEWithLogitsLoss()(rare_y_pred, rare_y_true)
+    print(f"Model: {data_type}")
+    print(f"Rare Words Loss: {rare_loss: .3f}%")
+    print(f"Rare Words Accuracy: {rare_acc: .3f}%")
+    print()
+
+    # ## now we wnat to get
+    # print(f"Model: {data_type}")
+    # print(f"Test Loss: {loss: .3f}%")
+    # # print(f"Test Accuracy: {acc: .3f}%")
+    # print()
+    # pass
+
 
 if __name__ == '__main__':
     # with Pool(2) as p:
@@ -616,9 +646,12 @@ if __name__ == '__main__':
     for data_type in [ONEHOT_AVERAGE, W2V_AVERAGE, W2V_SEQUENCE]:
         print_results_from_pickle(data_type)
 
+    for data_type in [ W2V_AVERAGE, W2V_SEQUENCE]:
+        test_data_on_special_subsets(data_type)
     # data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
     # embedding_dim = data_manager.get_input_shape()[0]
     import winsound
+
     duration = 250  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
