@@ -59,7 +59,7 @@ def update_sentence_arcs(sentence, field='word'):
 
 
 def get_all_arcs(sentences):
-    word_arcs, tag_arcs,  = {}, {}
+    word_arcs, tag_arcs = {}, {}
     for i, sentence in enumerate(sentences):
         word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
         tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
@@ -72,12 +72,13 @@ def main():
 
     V = get_all_words(sentences)
     T = get_all_tags(sentences)
-    print(len(V)**2+ len(T)**2)
+    print(len(V) ** 2 + len(T) ** 2)
     # word_arcs, tag_arcs = get_all_arcs(sentences)
     # for i, word in word_arcs.items():
     #     print(word)
     #     print(tag_arcs[i])
     #     break
+
 
 if __name__ == '__main__':
     main()
