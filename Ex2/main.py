@@ -1,5 +1,6 @@
 import nltk
 # nltk.download('brown')
+
 from nltk.corpus import brown as br
 
 COUNTER_KEY = '#'  # key for the counter of the number of words in the dictionary
