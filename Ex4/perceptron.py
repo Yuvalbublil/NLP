@@ -5,81 +5,21 @@ from typing import NoReturn
 
 import numpy as np
 
-from IMLearn.base import BaseEstimator
-from IMLearn.metrics import misclassification_error
-
 
 def default_callback(fit: Perceptron, x: np.ndarray, y: int):
     pass
 
 
-class Perceptron(BaseEstimator):
-    """
-    Perceptron half-space classifier
-
-    Finds a separating hyperplane for given linearly separable data.
-
-    Attributes
-    ----------
-    include_intercept: bool, default = True
-        Should fitted model include an intercept or not
-
-    max_iter_: int, default = 1000
-        Maximum number of passes over training data
-
-    coefs_: ndarray of shape (n_features,) or (n_features+1,)
-        Coefficients vector fitted by Perceptron algorithm. To be set in
-        `Perceptron.fit` function.
-
-    callback_: Callable[[Perceptron, np.ndarray, int], None]
-            A callable to be called after each update of the model while fitting to given data
-            Callable function should receive as input a Perceptron instance, current sample and current response
-    """
-    def __init__(self, include_intercept: bool = True, max_iter: int = 1000,
-                 callback: Callable[[Perceptron, np.ndarray, int], None] = default_callback):
-        """
-        Instantiate a Perceptron classifier
-
-        Parameters
-        ----------
-        include_intercept: bool, default=True
-            Should fitted model include an intercept or not
-
-        max_iter: int, default = 1000
-            Maximum number of passes over training data
-
-        callback: Callable[[Perceptron, np.ndarray, int], None]
-            A callable to be called after each update of the model while fitting to given data
-            Callable function should receive as input a Perceptron instance, current sample and current response
-        """
+class Perceptron:
+    def __init__(self, n_features: int = -1, num_iter: int = 2):
         super().__init__()
-        self.include_intercept_ = include_intercept
-        self.max_iter_ = max_iter
-        self.callback_ = callback
+        self.num_iter = num_iter
+        self.n_features = n_features
         self.coefs_ = None
 
-    def _fit(self, X: np.ndarray, y: np.ndarray) -> NoReturn:
-        """
-        Fit a halfspace to to given samples. Iterate over given data as long as there exists a sample misclassified
-        or that did not reach `self.max_iter_`
-
-        Parameters
-        ----------
-        X : ndarray of shape (n_samples, n_features)
-            Input data to fit an estimator for
-
-        y : ndarray of shape (n_samples, )
-            Responses of input data to fit to
-
-        Notes
-        -----
-        Fits model with or without an intercept depending on value of `self.fit_intercept_`
-        """
-        n_samples, n_features = X.shape
-        training_loss_ = np.zeros(n_features)
-        if self.include_intercept_:
-            training_loss_ = np.zeros(n_features + 1)
-            X = self.__intercepted_X(X)
+    def fit(self, X: np.ndarray, y: np.ndarray) -> NoReturn:
+        weights = np.zeros(self.n_features)
+        b = 0
 
         for t in range(self.max_iter_):
             for i, x in enumerate(X):

@@ -156,16 +156,16 @@ def make_sparse_vector(first_tag, second_tag, first_word, second_word):
 def feature_function(sentence, i, j):
     """
     :param sentence: the sentence
-    :param i: the first word
-    :param j: the second word
+    :param i: the first word index
+    :param j: the second word index
     :return: the feature vector
     """
     # get the words and tags
     # TODO: should we add .values()?
-    first_word = sentence.nodes[i][WORD]
-    second_word = sentence.nodes[j][WORD]
-    first_tag = sentence.nodes[i][TAG]
-    second_tag = sentence.nodes[j][TAG]
+    first_word = sentence.nodes.values()[i][WORD]
+    second_word = sentence.nodes.values()[j][WORD]
+    first_tag = sentence.nodes.values()[i][TAG]
+    second_tag = sentence.nodes.values()[j][TAG]
 
     # make the sparse vector
     arr = make_sparse_vector(first_tag, second_tag, first_word, second_word)
@@ -175,9 +175,21 @@ def main():
     sentences = dependency_treebank.parsed_sents()
     train, test = train_test_split(sentences, split_percentage=0.1)
 
+    # get the arcs
+    word_arcs, tag_arcs = get_all_arcs(train)
+    all_data = list()
+    for i in tqdm.tqdm(word_arcs):
+        first_word, second_word = word_arcs[i]
+        first_tag, second_tag = tag_arcs[i]
+        # get the sparse vector
+        all_data.append(make_sparse_vector(first_tag, second_tag, first_word, second_word))
+
     V = get_all_words(sentences)
     T = get_all_tags(sentences)
-    print(len(V) ** 2 + len(T) ** 2)
+    for first_word in V:
+        for second_word in V:
+            all_data.append(make_sparse_vector(first_tag, second_tag, first_word, second_word))
+
     # word_arcs, tag_arcs = get_all_arcs(sentences)
     # for i, word in word_arcs.items():
     #     print(word)
@@ -186,4 +198,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    sentences = dependency_treebank.parsed_sents()
+    train, test = train_test_split(sentences, split_percentage=0.1)
+    for sentence in train:
+        get_arcs_from_sentence(sentence)
+    # main()
