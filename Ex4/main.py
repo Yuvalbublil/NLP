@@ -1,5 +1,7 @@
 import random
 from pprint import pprint
+
+import tqdm
 from scipy.sparse import coo_matrix
 from nltk.corpus import dependency_treebank
 
@@ -32,6 +34,7 @@ def get_all_words(sentences):
     V.add(ROOT)
     return V
 
+
 def get_words_enumaration():
     """
     :return: a dictionary of words and their index
@@ -43,6 +46,7 @@ def get_words_enumaration():
         words_enumarations = {word: i for i, word in enumerate(V)}
     return words_enumarations
 
+
 def get_all_tags(sentences):
     T = set()
     for sentence in sentences:
@@ -52,6 +56,7 @@ def get_all_tags(sentences):
             T.add(word['tag'])
     T.add(ROOT)
     return T
+
 
 def get_tags_enumaration():
     """
@@ -63,6 +68,7 @@ def get_tags_enumaration():
         T = get_all_tags(sentences)
         tags_enumarations = {tag: i for i, tag in enumerate(T)}
     return tags_enumarations
+
 
 def sentence_address_dict(sentence):
     return {word['address']: word for word in sentence.nodes.values()}
@@ -82,12 +88,33 @@ def update_sentence_arcs(sentence, field='word'):
     return arcs
 
 
-def get_all_arcs(sentences):
+def get_true_arcs(sentences):
     word_arcs, tag_arcs = {}, {}
     for i, sentence in enumerate(sentences):
         word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
         tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
     return word_arcs, tag_arcs
+
+
+def get_arcs_from_sentence(sentence):
+    """
+    :param sentence: a sentence
+    :return: a list of arcs in the sentence
+    """
+    arcs = []
+    for word in sentence.nodes.values():
+        if word['head'] is None:
+            continue
+        arcs.append((word['head'], word['address']))
+    return arcs
+def get_all_arcs(sentences):
+    y = {}
+    word_arcs, tag_arcs = {}, {}
+    for i, sentence in enumerate(sentences):
+        word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
+        tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
+    return word_arcs, tag_arcs, y
+
 
 def get_d():
     """
@@ -170,6 +197,8 @@ def feature_function(sentence, i, j):
     # make the sparse vector
     arr = make_sparse_vector(first_tag, second_tag, first_word, second_word)
     return arr
+
+
 def main():
 
     sentences = dependency_treebank.parsed_sents()

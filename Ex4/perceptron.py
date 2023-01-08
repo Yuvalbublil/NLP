@@ -21,59 +21,15 @@ class Perceptron:
         weights = np.zeros(self.n_features)
         b = 0
 
-        for t in range(self.max_iter_):
+        for t in range(self.num_iter):
             for i, x in enumerate(X):
-                response = y[i] * np.matmul(training_loss_, x)
-                self.callback_(self, x, response)
-                if response <= 0:
-                    training_loss_ += y[i] * x
+                if y[i] * x.dot(weights) + b <= 0:
+                    weights += y[i] * x.toarray()
+                    b += y[i]
                 else:
-                    self.coefs_ = training_loss_
+                    self.coefs_ = weights
                     return
 
-    def _predict(self, X: np.ndarray) -> np.ndarray:
-        """
-        Predict responses for given samples using fitted estimator
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return X.dot(self.coefs_)
 
-        Parameters
-        ----------
-        X : ndarray of shape (n_samples, n_features)
-            Input data to predict responses for
-
-        Returns
-        -------
-        responses : ndarray of shape (n_samples, )
-            Predicted responses of given samples
-        """
-        if self.include_intercept_:
-            X = self.__intercepted_X(X)
-        return np.matmul(X, self.coefs_)
-
-    def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
-        """
-        Evaluate performance under misclassification loss function
-
-        Parameters
-        ----------
-        X : ndarray of shape (n_samples, n_features)
-            Test samples
-
-        y : ndarray of shape (n_samples, )
-            True labels of test samples
-
-        Returns
-        -------
-        loss : float
-            Performance under missclassification loss function
-        """
-        y_pred = self.predict(X)
-        return misclassification_error(y, y_pred)
-
-    def __intercepted_X(self, X: np.ndarray) -> np.ndarray:
-        return np.append(np.zeros((X.shape[0], 1)), X, axis=1)
-
-
-if __name__ == '__main__':
-    p = Perceptron()
-    p.fit(np.random.rand(10, 4), np.random.rand(10))
-    print(p.coefs_)
