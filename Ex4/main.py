@@ -2,7 +2,7 @@ import random
 from pprint import pprint
 from perceptron import Perceptron
 import tqdm
-from scipy.sparse import coo_matrix
+from scipy.sparse import dok_matrix
 from nltk.corpus import dependency_treebank
 
 FALSE = -1
@@ -10,15 +10,14 @@ FALSE = -1
 TRUE = 1
 
 TAG = 'tag'
-
 WORD = 'word'
-
 ROOT = '<ROOT>'
 d = 0  # global variable for d
 amount_of_tags = 0
 amount_of_words = 0
 tags_enumarations = {}
 words_enumarations = {}
+
 
 def train_test_split(sentences, split_percentage):
     random.shuffle(sentences)
@@ -186,7 +185,7 @@ def make_sparse_vector(first_tag, second_tag, first_word, second_word):
     :return:
     """
     # creating the sparse vector
-    arr = coo_matrix((get_d()), dtype=bool)
+    arr = dok_matrix((1, get_d()), dtype=bool)
 
     # get the index of the tags and words
     second_tag_index = get_tags_enumaration()[second_tag]
@@ -198,13 +197,12 @@ def make_sparse_vector(first_tag, second_tag, first_word, second_word):
     word_index = get_amount_of_tags() ** 2 + first_word_index * get_amount_of_words() + second_word_index
 
     # update the sparse vector
-    arr[tag_index] = True
-    arr[word_index] = True
+    arr[:, tag_index] = True
+    arr[:, word_index] = True
     return arr
 
 
 def main():
-
     sentences = dependency_treebank.parsed_sents()
     train, test = train_test_split(sentences, split_percentage=0.1)
     # get the arcs
@@ -214,8 +212,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sentences = dependency_treebank.parsed_sents()
-    train, test = train_test_split(sentences, split_percentage=0.1)
-    for sentence in train:
-        get_arcs_from_sentence(sentence)
-    # main()
+    main()
