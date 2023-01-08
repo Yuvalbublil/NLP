@@ -116,6 +116,8 @@ def get_sparse_from_sentence(sentence):
             else:
                 y.append(FALSE)
     return arcs, y
+
+
 def get_all_sparse_from_sentences(sentences):
     """
     :param sentences: a list of sentences
@@ -128,6 +130,8 @@ def get_all_sparse_from_sentences(sentences):
         arcs.extend(arcs_sentence)
         y.extend(y_sentence)
     return arcs, y
+
+
 # def get_all_arcs(sentences):
 #     y = {}
 #     word_arcs, tag_arcs = {}, {}
