@@ -1,9 +1,13 @@
 import random
 from pprint import pprint
-
+from perceptron import Perceptron
 import tqdm
 from scipy.sparse import coo_matrix
 from nltk.corpus import dependency_treebank
+
+FALSE = -1
+
+TRUE = 1
 
 TAG = 'tag'
 
@@ -70,50 +74,68 @@ def get_tags_enumaration():
     return tags_enumarations
 
 
-def sentence_address_dict(sentence):
-    return {word['address']: word for word in sentence.nodes.values()}
+# def sentence_address_dict(sentence):
+#     return {word['address']: word for word in sentence.nodes.values()}
+#
+#
+# def update_sentence_arcs(sentence, field='word'):
+#     arcs = []
+#     address_dict = sentence_address_dict(sentence)
+#     for word in sentence.nodes.values():
+#         if word['head'] is None:
+#             continue
+#
+#         head_word = address_dict[word['head']][field]
+#         if head_word is None:
+#             head_word = ROOT
+#         arcs.append((head_word, word[field]))
+#     return arcs
 
 
-def update_sentence_arcs(sentence, field='word'):
-    arcs = []
-    address_dict = sentence_address_dict(sentence)
-    for word in sentence.nodes.values():
-        if word['head'] is None:
-            continue
-
-        head_word = address_dict[word['head']][field]
-        if head_word is None:
-            head_word = ROOT
-        arcs.append((head_word, word[field]))
-    return arcs
+# def get_true_arcs(sentences):
+#     word_arcs, tag_arcs = {}, {}
+#     for i, sentence in enumerate(sentences):
+#         word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
+#         tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
+#     return word_arcs, tag_arcs
 
 
-def get_true_arcs(sentences):
-    word_arcs, tag_arcs = {}, {}
-    for i, sentence in enumerate(sentences):
-        word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
-        tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
-    return word_arcs, tag_arcs
-
-
-def get_arcs_from_sentence(sentence):
+def get_sparse_from_sentence(sentence):
     """
-    :param sentence: a sentence
-    :return: a list of arcs in the sentence
+    :param sentence: a list of sentences
+    :return: a sparse matrix of the arcs in the sentences
     """
     arcs = []
-    for word in sentence.nodes.values():
-        if word['head'] is None:
-            continue
-        arcs.append((word['head'], word['address']))
-    return arcs
-def get_all_arcs(sentences):
-    y = {}
-    word_arcs, tag_arcs = {}, {}
-    for i, sentence in enumerate(sentences):
-        word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
-        tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
-    return word_arcs, tag_arcs, y
+    y = []
+    for first_word in sentence.nodes.values():
+        for second_word in sentence.nodes.values():
+            if second_word['head'] is None:
+                continue
+            arcs.append(make_sparse_vector(first_word[TAG], second_word[TAG], first_word[WORD], second_word[WORD]))
+            if first_word['address'] == second_word['head']:
+                y.append(TRUE)
+            else:
+                y.append(FALSE)
+    return arcs, y
+def get_all_sparse_from_sentences(sentences):
+    """
+    :param sentences: a list of sentences
+    :return: a list of all arcs in the sentences , and a list of the labels of the arcs
+    """
+    arcs = []
+    y = []
+    for sentence in sentences:
+        arcs_sentence, y_sentence = get_sparse_from_sentence(sentence)
+        arcs.extend(arcs_sentence)
+        y.extend(y_sentence)
+    return arcs, y
+# def get_all_arcs(sentences):
+#     y = {}
+#     word_arcs, tag_arcs = {}, {}
+#     for i, sentence in enumerate(sentences):
+#         word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
+#         tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
+#     return word_arcs, tag_arcs, y
 
 
 def get_d():
@@ -180,50 +202,15 @@ def make_sparse_vector(first_tag, second_tag, first_word, second_word):
     arr[word_index] = True
     return arr
 
-def feature_function(sentence, i, j):
-    """
-    :param sentence: the sentence
-    :param i: the first word index
-    :param j: the second word index
-    :return: the feature vector
-    """
-    # get the words and tags
-    # TODO: should we add .values()?
-    first_word = sentence.nodes.values()[i][WORD]
-    second_word = sentence.nodes.values()[j][WORD]
-    first_tag = sentence.nodes.values()[i][TAG]
-    second_tag = sentence.nodes.values()[j][TAG]
-
-    # make the sparse vector
-    arr = make_sparse_vector(first_tag, second_tag, first_word, second_word)
-    return arr
-
 
 def main():
 
     sentences = dependency_treebank.parsed_sents()
     train, test = train_test_split(sentences, split_percentage=0.1)
-
     # get the arcs
-    word_arcs, tag_arcs = get_all_arcs(train)
-    all_data = list()
-    for i in tqdm.tqdm(word_arcs):
-        first_word, second_word = word_arcs[i]
-        first_tag, second_tag = tag_arcs[i]
-        # get the sparse vector
-        all_data.append(make_sparse_vector(first_tag, second_tag, first_word, second_word))
-
-    V = get_all_words(sentences)
-    T = get_all_tags(sentences)
-    for first_word in V:
-        for second_word in V:
-            all_data.append(make_sparse_vector(first_tag, second_tag, first_word, second_word))
-
-    # word_arcs, tag_arcs = get_all_arcs(sentences)
-    # for i, word in word_arcs.items():
-    #     print(word)
-    #     print(tag_arcs[i])
-    #     break
+    X_train, Y_train = get_all_sparse_from_sentences(train)
+    X_test, Y_test = get_all_sparse_from_sentences(test)
+    P = Perceptron(n_features=get_d(), n_iter=2)
 
 
 if __name__ == '__main__':
