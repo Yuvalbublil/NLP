@@ -1,20 +1,20 @@
 import random
-from pprint import pprint
 
 import tqdm
-from scipy.sparse import coo_matrix
+from scipy.sparse import dok_matrix
 from nltk.corpus import dependency_treebank
 
+from Ex4.perceptron import Perceptron
+
 TAG = 'tag'
-
 WORD = 'word'
-
 ROOT = '<ROOT>'
 d = 0  # global variable for d
 amount_of_tags = 0
 amount_of_words = 0
 tags_enumarations = {}
 words_enumarations = {}
+
 
 def train_test_split(sentences, split_percentage):
     random.shuffle(sentences)
@@ -107,13 +107,14 @@ def get_arcs_from_sentence(sentence):
             continue
         arcs.append((word['head'], word['address']))
     return arcs
+
+
 def get_all_arcs(sentences):
-    y = {}
     word_arcs, tag_arcs = {}, {}
     for i, sentence in enumerate(sentences):
         word_arcs[i] = update_sentence_arcs(sentence, field=WORD)
         tag_arcs[i] = update_sentence_arcs(sentence, field=TAG)
-    return word_arcs, tag_arcs, y
+    return word_arcs, tag_arcs
 
 
 def get_d():
@@ -164,7 +165,7 @@ def make_sparse_vector(first_tag, second_tag, first_word, second_word):
     :return:
     """
     # creating the sparse vector
-    arr = coo_matrix((get_d()), dtype=bool)
+    arr = dok_matrix((1, get_d()), dtype=bool)
 
     # get the index of the tags and words
     second_tag_index = get_tags_enumaration()[second_tag]
@@ -176,9 +177,10 @@ def make_sparse_vector(first_tag, second_tag, first_word, second_word):
     word_index = get_amount_of_tags() ** 2 + first_word_index * get_amount_of_words() + second_word_index
 
     # update the sparse vector
-    arr[tag_index] = True
-    arr[word_index] = True
+    arr[:, tag_index] = True
+    arr[:, word_index] = True
     return arr
+
 
 def feature_function(sentence, i, j):
     """
@@ -200,7 +202,6 @@ def feature_function(sentence, i, j):
 
 
 def main():
-
     sentences = dependency_treebank.parsed_sents()
     train, test = train_test_split(sentences, split_percentage=0.1)
 
@@ -208,16 +209,19 @@ def main():
     word_arcs, tag_arcs = get_all_arcs(train)
     all_data = list()
     for i in tqdm.tqdm(word_arcs):
-        first_word, second_word = word_arcs[i]
-        first_tag, second_tag = tag_arcs[i]
-        # get the sparse vector
-        all_data.append(make_sparse_vector(first_tag, second_tag, first_word, second_word))
+        for (first_word, second_word), (first_tag, second_tag) in zip(word_arcs[i], tag_arcs[i]):
+            arr = make_sparse_vector(first_tag, second_tag, first_word, second_word)
+            all_data.append(arr)
+        break
 
-    V = get_all_words(sentences)
-    T = get_all_tags(sentences)
-    for first_word in V:
-        for second_word in V:
-            all_data.append(make_sparse_vector(first_tag, second_tag, first_word, second_word))
+    perceptron = Perceptron(n_features=get_d())
+    perceptron.fit(all_data, [1] * len(all_data))
+    print("done")
+    # V = get_all_words(sentences)
+    # T = get_all_tags(sentences)
+    # for first_word in V:
+    #     for second_word in V:
+    #         all_data.append(make_sparse_vector(first_tag, second_tag, first_word, second_word))
 
     # word_arcs, tag_arcs = get_all_arcs(sentences)
     # for i, word in word_arcs.items():
@@ -227,8 +231,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sentences = dependency_treebank.parsed_sents()
-    train, test = train_test_split(sentences, split_percentage=0.1)
-    for sentence in train:
-        get_arcs_from_sentence(sentence)
-    # main()
+    main()

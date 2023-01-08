@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from typing import Callable
-from typing import NoReturn
-
 import numpy as np
 
 
@@ -17,14 +14,14 @@ class Perceptron:
         self.n_features = n_features
         self.coefs_ = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> NoReturn:
+    def fit(self, X, y):
         weights = np.zeros(self.n_features)
         b = 0
 
         for t in range(self.num_iter):
             for i, x in enumerate(X):
-                if y[i] * x.dot(weights) + b <= 0:
-                    weights += y[i] * x.toarray()
+                if y[i] * x.dot(weights)[0] + b <= 0:
+                    weights += (y[i] * x.toarray()).reshape(self.n_features)
                     b += y[i]
                 else:
                     self.coefs_ = weights
@@ -32,4 +29,3 @@ class Perceptron:
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return X.dot(self.coefs_)
-
